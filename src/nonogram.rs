@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
 use gloo_console::log;
+use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::to_value;
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Copy, Debug, Default, Serialize, Deserialize)]
 pub enum Cell {
     #[default]
     Unset,
@@ -25,24 +25,28 @@ impl Side {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-struct SolveState {
-    check_idx: u64,
-
+pub struct SolveState {
+    pub counter: usize,
+    pub is_x: bool,
+    pub idx: usize,
 }
 
 impl Default for SolveState {
     fn default() -> SolveState {
-        SolveState { check_idx:0 }
+        SolveState {
+            counter: 0,
+            is_x: true,
+            idx: 0,
+        }
     }
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Board {
     pub x: Side,
     pub y: Side,
     pub state: Vec<Vec<Cell>>,
-    solve_state: Option<SolveState>,
+    pub solve_state: Option<SolveState>,
 }
 
 impl Board {
@@ -54,7 +58,7 @@ impl Board {
             x: Side::new(x_len),
             y: Side::new(y_len),
             state: Self::default_state(x_len, y_len),
-            solve_state: None
+            solve_state: None,
         }
     }
     pub fn by_sides(x: Side, y: Side) -> Board {
@@ -62,41 +66,146 @@ impl Board {
             x: x.clone(),
             y: y.clone(),
             state: Self::default_state(x.len, y.len),
-            solve_state: None
+            solve_state: None,
         }
     }
 
-    fn gen(stack: &mut Vec<u32>) {
-        stack.push(2);
-    }
-
-    fn solve_line(constraints: &Vec<u32>, old: &mut Vec<Cell>) {
-        let len = old.len() as u32;
-        let gaps = len - constraints.iter().sum::<u32>();
-        assert!(gaps < len);
-
-        let mut gap_stack: Vec<u32> = vec![];
-        log!(to_value(&gap_stack).unwrap());
-
-        Self::gen(&mut gap_stack);
-        Self::gen(&mut gap_stack);
-    }
-
     pub fn next(&mut self) -> Option<()> {
-        if let Some(SolveState { check_idx }) = &mut self.solve_state {
-            *check_idx += 1;
-            *check_idx %= (self.x.len + self.y.len) as u64;
-            log!(*check_idx);
-            Self::solve_line(&self.x.constraints[0], &mut self.state[0]);
-            if *check_idx < self.x.len as u64 {
-                Some(());
+        if let Some(SolveState { counter, is_x, idx }) = &mut self.solve_state {
+            let c_idx = *counter;
+            let use_x = c_idx < self.x.len;
+            let c_idx = if use_x { c_idx } else { c_idx - self.x.len };
+
+            *is_x = use_x;
+            *idx = c_idx;
+
+            let (constraints, state) = if use_x {
+                (&self.x.constraints[c_idx], self.state[c_idx].clone())
             } else {
-                Some(());
+                let cashed = self.state.iter().map(|line| line[c_idx]).collect::<Vec<_>>();
+                (&self.y.constraints[c_idx], cashed)
+            };
+
+            // log!(c_idx);
+            // log!("constraints", to_value(&constraints).unwrap());
+            // log!("state", to_value(&state).unwrap());
+
+            if let Some(updated) = solve_line(constraints, &state) {
+                // log!("solved", to_value(&updated).unwrap());
+                if use_x {
+                    self.state[c_idx] = updated;
+                } else {
+                    for (pos, &cell) in updated.iter().enumerate() {
+                        self.state[pos][c_idx] = cell;
+                    }
+                }
+            } else {
+                // log!("none(");
             }
-            
+
+            *counter += 1;
+            *counter %= self.x.len + self.y.len;
         } else {
             self.solve_state = Some(SolveState::default());
         }
         Some(())
     }
+}
+
+/** Tries to solve line based on `constraints` and if can, return updated row */
+fn solve_line(constraints: &Vec<u32>, old: &Vec<Cell>) -> Option<Vec<Cell>> {
+    let len = old.len() as u32;
+    let gaps = len - constraints.iter().sum::<u32>();
+    assert!(gaps < len);
+
+    fn check_block(line: &Vec<Cell>, idx: u32, len: u32) -> bool {
+        (idx..(idx + len)).all(|cur| match line.get(cur as usize) {
+            Some(Cell::Set(true)) => true,
+            Some(Cell::Unset) => true,
+            _ => false,
+        })
+    }
+
+    struct Env<'a> {
+        old: &'a Vec<Cell>,
+        constraints: &'a Vec<u32>,
+        stack: &'a mut Vec<u32>,
+        found: Vec<Vec<u32>>,
+    }
+
+    fn dfs(env: &mut Env, begin: u32, cur: usize) {
+        let len = env.old.len() as u32;
+
+        if cur >= env.constraints.len() {
+            let end_clear = ((begin - 1)..len).all(|cur| match env.old.get(cur as usize) {
+                Some(Cell::Set(false) | Cell::Unset) => true,
+                _ => false,
+            });
+            if end_clear {
+                env.found.push(env.stack.clone());
+            }
+            return;
+        }
+
+        let cur_len = env.constraints[cur];
+
+        for idx in begin..(len - cur_len + 1) {
+            let prev_match = idx == 0
+                || match env.old.get((idx - 1) as usize) {
+                    Some(Cell::Set(true)) => false,
+                    _ => true,
+                };
+            if !prev_match {
+                return;
+            }
+            env.stack.push(idx);
+            if check_block(env.old, idx, cur_len) {
+                dfs(env, idx + cur_len + 1, cur + 1);
+            }
+            env.stack.pop();
+        }
+    }
+
+    let mut stack = vec![];
+    let mut env = Env {
+        old,
+        constraints,
+        stack: &mut stack,
+        found: vec![],
+    };
+    dfs(&mut env, 0, 0);
+
+    let found = env
+        .found
+        .iter()
+        .map(|marks| {
+            let mut res = vec![Cell::Set(false); len as usize];
+            for (idx, &begins) in marks.iter().enumerate() {
+                for cur in begins..(begins + constraints[idx]) {
+                    res[cur as usize] = Cell::Set(true);
+                }
+            }
+            res
+        })
+        .collect::<Vec<_>>();
+    if found.len() == 0 {
+        return None;
+    }
+    // log!("env.found", to_value(&env.found).unwrap());
+    // log!("found", to_value(&found).unwrap());
+
+    Some(
+        old.iter()
+            .enumerate()
+            .map(|(idx, &item)| {
+                if let Cell::Unset = item {
+                    let first = found[0][idx];
+                    if found.iter().all(|item| item[idx] == first) {
+                        return first;
+                    }
+                }
+                item
+            })
+            .collect::<Vec<_>>(),
+    )
 }

@@ -8,13 +8,13 @@ use serde_wasm_bindgen::to_value;
 use yew::prelude::*;
 
 async fn fetch_non(url: &str) -> Board {
-    // let fetched = Request::get(url)
-    //     .send()
-    //     .await
-    //     .unwrap()
-    //     .text()
-    //     .await
-    //     .unwrap();
+    let fetched = Request::get(url)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     let keys: String = [
         "catalogue",
         "title",
@@ -33,34 +33,34 @@ async fn fetch_non(url: &str) -> Board {
     .collect::<Vec<_>>()
     .join("|");
 
-    let fetched: String = r#"catalogue "webpbn.com #1"
-    title "Demo Puzzle from Front Page"
-    by "Jan Wolter"
-    copyright "&copy; Copyright 2004 by Jan Wolter"
-    license CC-BY-3.0
-    width 5
-    height 10
-    
-    rows
-    2
-    2,1
-    1,1
-    3
-    1,1
-    1,1
-    2
-    1,1
-    1,2
-    2
-    
-    columns
-    2,1
-    2,1,3
-    7
-    1,3
-    2,1
-    
-    goal "01100011010010101110101001010000110010100101111000""#.into();
+    // let fetched: String = r#"catalogue "webpbn.com #1"
+    // title "Demo Puzzle from Front Page"
+    // by "Jan Wolter"
+    // copyright "&copy; Copyright 2004 by Jan Wolter"
+    // license CC-BY-3.0
+    // width 5
+    // height 10
+
+    // rows
+    // 2
+    // 2,1
+    // 1,1
+    // 3
+    // 1,1
+    // 1,1
+    // 2
+    // 1,1
+    // 1,2
+    // 2
+
+    // columns
+    // 2,1
+    // 2,1,3
+    // 7
+    // 1,3
+    // 2,1
+
+    // goal "01100011010010101110101001010000110010100101111000""#.into();
 
     let re = Regex::new(format!("({keys})([\\s\\S]+?)(?={keys}|$)").as_str()).unwrap();
 
@@ -78,44 +78,48 @@ async fn fetch_non(url: &str) -> Board {
             }
         })
         .collect::<HashMap<_, _>>();
-    log!(keys.clone());
-    log!(fetched.clone());
-    log!(to_value(&dict).unwrap());
-    log!(url);
+    // log!(keys.clone());
+    // log!(fetched.clone());
+    // log!(to_value(&dict).unwrap());
+    // log!(url);
 
     let parse_side = |len: Option<&&str>, constraints: Option<&&str>| {
         let len = len.unwrap().parse::<usize>().unwrap();
-        let constraints = constraints.unwrap().split('\n').filter_map(|s| {
-            let arr = s.trim()
-                .split(',')
-                .filter_map(|s| s.parse::<u32>().ok())
-                .collect::<Vec<_>>();
-            (arr.len() != 0).then(|| arr)
-        }).collect::<Vec<_>>();
+        let constraints = constraints
+            .unwrap()
+            .split('\n')
+            .filter_map(|s| {
+                let arr = s
+                    .trim()
+                    .split(',')
+                    .filter_map(|s| s.parse::<u32>().ok())
+                    .collect::<Vec<_>>();
+                (arr.len() != 0).then(|| arr)
+            })
+            .collect::<Vec<_>>();
         Side { len, constraints }
     };
 
     let x = parse_side(dict.get("width"), dict.get("columns"));
     let y = parse_side(dict.get("height"), dict.get("rows"));
 
-    let mut board = Board::by_sides(x, y);
+    let board = Board::by_sides(x, y);
 
-    let size = board.x.len;
-    if let Some(goal) = dict.get("goal") {
-        log!(goal.clone());
-        let chars = goal.chars().collect::<Vec<_>>();
-        for (x, v) in board.state.iter_mut().enumerate() {
-            for (y, cell) in v.iter_mut().enumerate() {
-                *cell = match &chars[x + y * size] {
-                    '0' => Cell::Set(false),
-                    '1' => Cell::Set(true),
-                    _ => Cell::Unset,
-                }
-            }
-        }
-    }
-    
-    
+    // let size = board.x.len;
+    // if let Some(goal) = dict.get("goal") {
+    //     log!(goal.clone());
+    //     let chars = goal.chars().collect::<Vec<_>>();
+    //     for (x, v) in board.state.iter_mut().enumerate() {
+    //         for (y, cell) in v.iter_mut().enumerate() {
+    //             *cell = match &chars[x + y * size] {
+    //                 '0' => Cell::Set(false),
+    //                 '1' => Cell::Set(true),
+    //                 _ => Cell::Unset,
+    //             }
+    //         }
+    //     }
+    // }
+
     log!(to_value(&board.clone()).unwrap());
     board
     // Board::new(15, 20)
@@ -123,7 +127,6 @@ async fn fetch_non(url: &str) -> Board {
 
 #[function_component(App)]
 pub fn app() -> Html {
-    
     let board = use_state(|| Board::new(10, 10));
     {
         let s = board.clone();
@@ -132,7 +135,7 @@ pub fn app() -> Html {
                 let s = s.clone();
                 wasm_bindgen_futures::spawn_local(async move {
                     let fetched_videos = fetch_non("https://raw.githubusercontent.com/mikix/nonogram-db/master/db/qnonograms/examples/candle.non")
-                        .await; 
+                        .await;
                     s.set(fetched_videos);
                 });
                 || ()
@@ -142,34 +145,17 @@ pub fn app() -> Html {
     }
 
     let width = "500px";
-    let size = format!("calc({} / {})", width,  board.x.len.max(board.y.len));
-
-    let make_cell = |(idx, cell): (usize, &Cell)| {
-
-        html! {
-            <td style={
-                format!("width: {size}; height: {size}")
-            } class={format!("table-border cell {}", match *cell {
-                Cell::Unset => "unset",
-                Cell::Set(false) => "empty",
-                Cell::Set(true) => "filled",
-            })} key={idx}> {match *cell {
-                Cell::Set(false) => "✖️",
-                _ => "",
-            }}
-            </td>
-        }
-    };
+    let size = format!("calc({} / {})", width, board.x.len.max(board.y.len));
 
     let make_constraints = |side: &Side| {
-        html!{
+        html! {
             <>
                 {side.constraints.iter().map(|v| {
                     html!{
                         <tr class="constraints-row">
                         {v.iter().map(|item| {
                             html!{
-                                <td style={
+                                <td class="cell" style={
                                     format!("width: {size}; height: {size}")
                                 } >
                                     {item}
@@ -187,8 +173,6 @@ pub fn app() -> Html {
         <main>
             <div class="table-container">
                 <div class="left-side">
-                    <div class="corner">
-                    </div>
                     <table class="constraints">
                         {make_constraints(&board.y)}
                     </table>
@@ -198,22 +182,47 @@ pub fn app() -> Html {
                         {make_constraints(&board.x)}
                     </table>
                     <table class="main-table"> {
-                        board.state.iter().enumerate().map(|(idx, row)| {
-                            html!{<tr class="main-col" key={idx}>{
-                                row.iter().enumerate().map(make_cell).collect::<Html>()
+                        board.state.iter().enumerate().map(|(row_idx, row)| {
+                            html!{<tr class="main-col" key={row_idx}>{
+                                row.iter().enumerate().map(|(col_idx, &cell)| {
+                                    html! {
+                                        <td style={
+                                            format!("width: {size}; height: {size}")
+                                        } class={format!("table-border cell {} {}", match cell {
+                                            Cell::Unset => "unset",
+                                            Cell::Set(false) => "empty",
+                                            Cell::Set(true) => "filled",
+                                        }, match board.solve_state {
+                                            Some(SolveState{idx, is_x, ..}) if if is_x {
+                                                row_idx == idx
+                                            } else {
+                                                col_idx == idx
+                                            } => "highlighted",
+                                            _ => ""
+                                        })} key={col_idx}> {match cell {
+                                            Cell::Set(false) => "-",
+                                            _ => "",
+                                        }}
+                                        </td>
+                                    }
+                                }).collect::<Html>()
                             }</tr>}
                         }).collect::<Html>()
                     } </table>
                 </div>
             </div>
-            <button onclick={Callback::from(move |_| {
+            <button class="solve-btn btn" onclick={Callback::from(move |_| {
                 let board_state = board.clone();
                 let mut board = (*board_state).clone();
-                let _ = board.next();
+                for _ in 0..10 {
+                    let _ = board.next();
+                }
                 log!("done");
                 board_state.set(board);
             })}>
-                {"solve"}
+                <p>
+                    {"Solve 10 Lines"}
+                </p>
             </button>
         </main>
     }

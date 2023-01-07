@@ -1,9 +1,22 @@
-$border-width: 2px;
+@import url('https://fonts.googleapis.com/css2?family=Lexend&display=swap');
+
+$primary: #c6b4e0;
+$primary-dark: #1e1629;
+$dark: #191919;
+$secondary: #afd275;
+$complimentary: #ff5555;
+
+:root,
+p {
+  font-family: 'Lexend', sans-serif;
+  font-weight: bold;
+}
 
 html,
 body {
   height: 100%;
   margin: 0;
+  background-color: $secondary;
 }
 
 body {
@@ -13,7 +26,6 @@ body {
 }
 
 main {
-  font-family: sans-serif;
   text-align: center;
 }
 
@@ -21,16 +33,19 @@ main {
   margin: 0px;
   padding: 0px;
   border-collapse: collapse;
+  display: grid;
+  align-items: center;
+  justify-items: center;
 }
 
 .table-border {
-  border: $border-width solid black;
-  margin: - calc($border-width / 2);
+  outline: 1px solid black;
 }
 
 .main-table {
   display: flex;
   flex-direction: row;
+  outline: 2px solid black;
 }
 
 .main-col {
@@ -73,10 +88,33 @@ main {
 }
 
 .unset {
+  background-color: $secondary;
 
 }
-.filled {
-  background-color: #222;
-}
+
 .empty {
+  background-color: $secondary;
+}
+
+.highlighted {
+  background-color: $primary;
+}
+.highlighted.filled {
+  background-color: $dark;
+}
+.filled {
+  background-color: $dark;
+}
+
+.btn {
+  background-color: #afd275;
+  box-shadow: 12px 12px 16px 0 rgba(0, 0, 0, 0.25),
+    -8px -8px 12px 0 rgba(255, 255, 255, 0.3);
+  border-radius: 50px;
+  padding: 0px 20px 0px 20px;
+  border: none;
+}
+
+.solve-btn {
+  margin-top: 20px;
 }
