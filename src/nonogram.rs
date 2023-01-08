@@ -1,4 +1,6 @@
 use gloo_console::log;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::to_value;
 
@@ -82,7 +84,11 @@ impl Board {
             let (constraints, state) = if use_x {
                 (&self.x.constraints[c_idx], self.state[c_idx].clone())
             } else {
-                let cashed = self.state.iter().map(|line| line[c_idx]).collect::<Vec<_>>();
+                let cashed = self
+                    .state
+                    .iter()
+                    .map(|line| line[c_idx])
+                    .collect::<Vec<_>>();
                 (&self.y.constraints[c_idx], cashed)
             };
 
@@ -116,6 +122,10 @@ impl Board {
 fn solve_line(constraints: &Vec<u32>, old: &Vec<Cell>) -> Option<Vec<Cell>> {
     let len = old.len() as u32;
     let gaps = len - constraints.iter().sum::<u32>();
+
+    // if gaps > (len - gaps) {
+    //     return None;
+    // }
     assert!(gaps < len);
 
     fn check_block(line: &Vec<Cell>, idx: u32, len: u32) -> bool {
@@ -130,7 +140,7 @@ fn solve_line(constraints: &Vec<u32>, old: &Vec<Cell>) -> Option<Vec<Cell>> {
         old: &'a Vec<Cell>,
         constraints: &'a Vec<u32>,
         stack: &'a mut Vec<u32>,
-        found: Vec<Vec<u32>>,
+        searched: Option<Vec<Cell>>,
     }
 
     fn dfs(env: &mut Env, begin: u32, cur: usize) {
@@ -142,7 +152,23 @@ fn solve_line(constraints: &Vec<u32>, old: &Vec<Cell>) -> Option<Vec<Cell>> {
                 _ => false,
             });
             if end_clear {
-                env.found.push(env.stack.clone());
+                let mut v = vec![Cell::Set(false); len as usize];
+
+                for (pos, &begins) in env.stack.iter().enumerate() {
+                    for i in begins..(begins + env.constraints[pos]) {
+                        v[i as usize] = Cell::Set(true);
+                    }
+                }
+
+                if let Some(searched) = &mut env.searched {
+                    searched.iter_mut().zip(v).for_each(|(old, new)| {
+                        if *old != new {
+                            *old = Cell::Unset;
+                        }
+                    });
+                } else {
+                    env.searched = Some(v);
+                }
             }
             return;
         }
@@ -171,41 +197,11 @@ fn solve_line(constraints: &Vec<u32>, old: &Vec<Cell>) -> Option<Vec<Cell>> {
         old,
         constraints,
         stack: &mut stack,
-        found: vec![],
+        searched: None,
     };
     dfs(&mut env, 0, 0);
 
-    let found = env
-        .found
-        .iter()
-        .map(|marks| {
-            let mut res = vec![Cell::Set(false); len as usize];
-            for (idx, &begins) in marks.iter().enumerate() {
-                for cur in begins..(begins + constraints[idx]) {
-                    res[cur as usize] = Cell::Set(true);
-                }
-            }
-            res
-        })
-        .collect::<Vec<_>>();
-    if found.len() == 0 {
-        return None;
-    }
-    // log!("env.found", to_value(&env.found).unwrap());
-    // log!("found", to_value(&found).unwrap());
+    log!("env.found");
 
-    Some(
-        old.iter()
-            .enumerate()
-            .map(|(idx, &item)| {
-                if let Cell::Unset = item {
-                    let first = found[0][idx];
-                    if found.iter().all(|item| item[idx] == first) {
-                        return first;
-                    }
-                }
-                item
-            })
-            .collect::<Vec<_>>(),
-    )
+    env.searched
 }

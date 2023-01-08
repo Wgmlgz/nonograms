@@ -134,7 +134,8 @@ pub fn app() -> Html {
             move |_| {
                 let s = s.clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    let fetched_videos = fetch_non("https://raw.githubusercontent.com/mikix/nonogram-db/master/db/qnonograms/examples/candle.non")
+                    // let fetched_videos = fetch_non("https://raw.githubusercontent.com/mikix/nonogram-db/master/db/webpbn/529.non")
+                    let fetched_videos = fetch_non("https://raw.githubusercontent.com/mikix/nonogram-db/master/db/qnonograms/examples/tiger.non")
                         .await;
                     s.set(fetched_videos);
                 });
